@@ -1,0 +1,127 @@
+import re
+import asyncio
+import aiohttp
+import yt_dlp
+import os
+from aiogram import Bot, Dispatcher, types
+from aiogram.filters import Command
+from aiogram.types import FSInputFile
+
+
+bot = Bot(token='11111111111111111111111111111111111111111111111111')  # Enter your bot Token from BotFather
+dp = Dispatcher()
+
+
+# Ответ Юзеру на команду /start
+@dp.message(Command('start'))
+async def start_cmd(message: types.Message):
+    await message.answer(
+        'Привет! Присылай ссылку на YouTube видео.'
+        ' \n Для получения аудиофайла используй команду: \n  /audio(пробел)"Ссылка на видео"'
+        ' \n Для получения видеофайла используй команду: \n  /video(пробел)"Ссылка на видео"')
+
+
+# Проверка корректности переданной Юзером ссылки
+async def check_youtube_link(url):
+    youtube_regex = r'(https?://www\.youtube\.com/(watch\?v=|shorts/)|https?://youtu\.be/)([a-zA-Z0-9_-]{11})'
+    if not re.match(youtube_regex, url):
+        return False, "Некорректный формат ссылки."
+
+    async with aiohttp.ClientSession() as session:
+        async with session.head(url, allow_redirects=True) as response:
+            if response.status == 200:
+                return True, "Ссылка корректна, пробую скачать контент."
+            else:
+                return False, "Видео не найдено или ссылка недоступна."
+
+
+async def download_content(url, is_audio=True):
+    output_dir = 'YouTube_downloaded_videos'
+    os.makedirs(output_dir, exist_ok=True)
+
+    if is_audio:
+        ydl_opts = {
+            'ratelimit': 10 * 1024 * 1024,  # Максимальная скорость загрузки 10 Мб/с
+            'max_filesize': 700 * 1024 * 1024,  # Максимальный размер файла 700 Мб
+            'format': 'bestaudio/best',  # Загрузка лучшего доступного аудио
+            'outtmpl': os.path.join(output_dir, '%(title)s.%(ext)s'),  # Шаблон имени файла и директории сохранения
+            'retries': 5,  # Количество повторных попыток
+            'http_chunk_size': 10485760,  # Размер куска (10MB)
+            'socket_timeout': 30,  # Тайм-аут сокета (в секундах)
+            'postprocessors': [{
+                'key': 'FFmpegExtractAudio',
+                'preferredcodec': 'mp3',
+                'preferredquality': '192',
+            }],
+        }
+    else:
+        ydl_opts = {
+            'ratelimit': 10 * 1024 * 1024,
+            'max_filesize': 700 * 1024 * 1024,
+            'format': 'bestvideo[height<=144]+bestaudio/best',
+            'outtmpl': os.path.join(output_dir, '%(title)s.%(ext)s'),
+            'retries': 5,  # Количество повторных попыток
+            'http_chunk_size': 10485760,  # Размер куска (10MB)
+            'socket_timeout': 30,  # Тайм-аут сокета (в секундах)
+            'postprocessors': [{
+                'key': 'FFmpegVideoConvertor',
+                'preferedformat': 'mp4',
+            }],
+        }
+
+    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+        info_dict = ydl.extract_info(url, download=True)
+        file_path = ydl.prepare_filename(info_dict)
+        if is_audio:
+            file_path = file_path.replace('.webm', '.mp3').replace('.m4a', '.mp3')
+        else:
+            file_path = file_path.replace('.webm', '.mp4').replace('.mkv', '.mp4')
+
+    return file_path
+
+
+async def download_and_send_content(url, chat_id, is_audio=True):
+    file_path = await download_content(url, is_audio)
+    if is_audio:
+        audio = FSInputFile(file_path)
+        await bot.send_audio(chat_id, audio)
+    else:
+        video = FSInputFile(file_path)
+        await bot.send_video(chat_id, video)
+
+
+@dp.message(Command('audio'))
+async def download_audio(message: types.Message):
+    url = message.text.split(' ', 1)[1] if ' ' in message.text else ''
+    is_valid, reply_message = await check_youtube_link(url)
+    await message.answer(reply_message)
+
+    if is_valid:
+        asyncio.create_task(download_and_send_content(url, message.chat.id, is_audio=True))
+
+
+@dp.message(Command('video'))
+async def download_video(message: types.Message):
+    url = message.text.split(' ', 1)[1] if ' ' in message.text else ''
+    is_valid, reply_message = await check_youtube_link(url)
+    await message.answer(reply_message)
+
+    if is_valid:
+        asyncio.create_task(download_and_send_content(url, message.chat.id, is_audio=False))
+
+
+# Ответ Юзеру на мусорные сообщения
+@dp.message()
+async def default_response(message: types.Message):
+    await message.answer(
+        'Бот позволяет скачать видео из YouTube или его звук (аудиокнигу, музыку и.т.д)'
+        ' \n    Для получения видеофайла используй команду: \n  /video(пробел)"Ссылка на видео"'
+        ' \n    Для получения аудиофайла используй команду: \n  /audio(пробел)"Ссылка на видео"'
+        ' \n Пример команды: \n/video https://www.youtube.com/shorts/4sNo7A6QLoQ')
+
+
+async def main():
+    await dp.start_polling(bot)
+
+
+asyncio.run(main())
