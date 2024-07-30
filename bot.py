@@ -22,9 +22,11 @@ class YouTubeBot:
 
     async def start_cmd(self, message: types.Message):
         await message.answer(
-            'Привет! Присылай ссылку на YouTube видео.'
-            ' \n Для получения аудиофайла используй команду: \n  /audio(пробел)"Ссылка на видео"'
-            ' \n Для получения видеофайла используй команду: \n  /video(пробел)"Ссылка на видео"'
+            '''
+            Привет! Присылай ссылку на YouTube видео.\n Для получения аудиофайла используй команду:
+            \n    /audio(пробел)"Ссылка на видео"\n\n Для получения видеофайла используй команду:
+            \n    /video(пробел)"Ссылка на видео"
+            '''
         )
 
     async def check_youtube_link(self, url):
@@ -35,7 +37,7 @@ class YouTubeBot:
         async with aiohttp.ClientSession() as session:
             async with session.head(url, allow_redirects=True) as response:
                 if response.status == 200:
-                    return True, "Ссылка корректна, пробую скачать контент."
+                    return True, "Ссылка корректна, пробую скачать контент. Пожалуйста подождите."
                 else:
                     return False, "Видео не найдено или ссылка недоступна."
 
@@ -49,8 +51,8 @@ class YouTubeBot:
                 'max_filesize': 700 * 1024 * 1024,  # Максимальный размер файла 700 Мб
                 'format': 'bestaudio/best',  # Загрузка лучшего доступного аудио
                 'outtmpl': os.path.join(output_dir, '%(title)s.%(ext)s'),  # Шаблон имени файла и директории сохранения
-                'retries': 5,  # Количество повторных попыток
-                'http_chunk_size': 10485760,  # Размер куска (10MB)
+                'retries': 10,  # Количество повторных попыток
+                'http_chunk_size': 1 * 1024 * 1024,  # Размер куска (1MB)
                 'socket_timeout': 30,  # Тайм-аут сокета (в секундах)
                 'postprocessors': [{
                     'key': 'FFmpegExtractAudio',
@@ -64,8 +66,8 @@ class YouTubeBot:
                 'max_filesize': 700 * 1024 * 1024,
                 'format': 'bestvideo[height<=144]+bestaudio/best',
                 'outtmpl': os.path.join(output_dir, '%(title)s.%(ext)s'),
-                'retries': 5,  # Количество повторных попыток
-                'http_chunk_size': 10485760,  # Размер куска (10MB)
+                'retries': 10,  # Количество повторных попыток
+                'http_chunk_size': 1 * 1024 * 1024,  # Размер куска (1MB)
                 'socket_timeout': 30,  # Тайм-аут сокета (в секундах)
                 'postprocessors': [{
                     'key': 'FFmpegVideoConvertor',
@@ -84,13 +86,16 @@ class YouTubeBot:
         return file_path
 
     async def download_and_send_content(self, url, chat_id, is_audio=True):
-        file_path = await self.download_content(url, is_audio)
-        if is_audio:
-            audio = FSInputFile(file_path)
-            await self.bot.send_audio(chat_id, audio)
-        else:
-            video = FSInputFile(file_path)
-            await self.bot.send_video(chat_id, video)
+        try:
+            file_path = await self.download_content(url, is_audio)
+            if is_audio:
+                audio = FSInputFile(file_path)
+                await self.bot.send_audio(chat_id, audio)
+            else:
+                video = FSInputFile(file_path)
+                await self.bot.send_video(chat_id, video)
+        except Exception as e:
+            await self.bot.send_message(chat_id, f"Извините, возникла проблема ({e}) при скачивании видео.")
 
     async def download_audio(self, message: types.Message):
         url = message.text.split(' ', 1)[1] if ' ' in message.text else ''
@@ -110,17 +115,19 @@ class YouTubeBot:
 
     async def default_response(self, message: types.Message):
         await message.answer(
-            'Бот позволяет скачать видео из YouTube или его звук (аудиокнигу, музыку и.т.д)'
-            ' \n    Для получения видеофайла используй команду: \n  /video(пробел)"Ссылка на видео"'
-            ' \n    Для получения аудиофайла используй команду: \n  /audio(пробел)"Ссылка на видео"'
-            ' \n Пример команды:\n    /video https://www.youtube.com/shorts/4sNo7A6QLoQ'
+            '''
+            Бот позволяет скачать видео из YouTube или его звук (аудиокнигу, музыку и.т.д)
+            \n    Для получения видеофайла используй команду: \n        /video(пробел)"Ссылка на видео"
+            \n    Для получения аудиофайла используй команду: \n        /audio(пробел)"Ссылка на видео"
+            \n Пример команды: \n/video https://www.youtube.com/shorts/4sNo7A6QLoQ
+            '''
         )
 
     async def run(self):
-        await self.dp.start_polling(self.bot, skip_updates=True)
+        await self.dp.start_polling(self.bot)
 
 
 if __name__ == '__main__':
-    token = '111111111111111111111111111111111111111111111111111111111111'  # Enter your bot Token from BotFather
+    token = '11111111111111111111111111111111111111111111111'  # Enter your bot Token from BotFather
     youtube_bot = YouTubeBot(token)
     asyncio.run(youtube_bot.run())
