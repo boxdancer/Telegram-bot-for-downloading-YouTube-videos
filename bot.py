@@ -124,10 +124,11 @@ class YouTubeBot:
         )
 
     async def run(self):
+        await self.bot.delete_webhook(drop_pending_updates=True)
         await self.dp.start_polling(self.bot)
 
 
 if __name__ == '__main__':
-    token = '11111111111111111111111111111111111111111111111'  # Enter your bot Token from BotFather
+    token = '1111111111111111111111111111111111111111111111111111111'  # Enter your bot Token from BotFather
     youtube_bot = YouTubeBot(token)
     asyncio.run(youtube_bot.run())
