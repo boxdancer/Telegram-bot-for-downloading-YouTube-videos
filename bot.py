@@ -6,7 +6,7 @@ import os
 from aiogram import Bot, Dispatcher, types
 from aiogram.filters import Command
 from aiogram.types import FSInputFile
-
+from dotenv import find_dotenv, load_dotenv
 
 class YouTubeBot:
     def __init__(self, token):
@@ -129,6 +129,7 @@ class YouTubeBot:
 
 
 if __name__ == '__main__':
-    token = '1111111111111111111111111111111111111111111111111111111'  # Enter your bot Token from BotFather
+    load_dotenv(find_dotenv())
+    token = os.getenv('TOKEN')  # Enter your bot Token from BotFather
     youtube_bot = YouTubeBot(token)
     asyncio.run(youtube_bot.run())
